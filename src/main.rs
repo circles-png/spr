@@ -119,35 +119,40 @@ fn simulate(
         else {
             continue;
         };
-        let this_translation = this_transform.translation;
-        this_transform.into_inner().translation = (this_translation
-            + (closest.1.translation - this_translation).normalize()
-                * time.delta_seconds()
-                * settings.speed
-                * match this_shape.cmp(&closest.0) {
-                    Ordering::Greater => 1.,
-                    Ordering::Less => -1.,
-                    Ordering::Equal => unreachable!(),
-                }
-                * random::<f32>()
-            + {
-                let average = {
-                    let close_entities = copy.iter().filter_map(|(_, transform)| {
-                        if transform.translation.distance(this_translation)
-                            < settings.collision_range
-                        {
-                            Some(transform.translation)
-                        } else {
-                            None
-                        }
-                    });
-                    close_entities.clone().sum::<Vec3>() / close_entities.count() as f32
-                };
-                (this_translation - average).normalize_or_zero()
-                    * time.delta_seconds()
-                    * settings.collision_speed
-            })
-        .clamp_length_max(settings.max_size);
+        let this_transform = this_transform.into_inner();
+        let movement = (closest.1.translation - this_transform.translation).normalize()
+            * settings.speed
+            * match this_shape.cmp(&closest.0) {
+                Ordering::Greater => 1.,
+                Ordering::Less => -1.,
+                Ordering::Equal => unreachable!(),
+            }
+            * random::<f32>();
+        let collision = {
+            let average = {
+                let close_entities = copy.iter().filter_map(|(_, transform)| {
+                    if transform.translation.distance(this_transform.translation)
+                        < settings.collision_range
+                    {
+                        Some(transform.translation)
+                    } else {
+                        None
+                    }
+                });
+                close_entities.clone().sum::<Vec3>() / close_entities.count() as f32
+            };
+            (this_transform.translation - average).normalize_or_zero() * settings.collision_speed
+        };
+        let delta = movement + collision;
+        this_transform.translation = this_transform.translation.lerp(
+            (this_transform.translation + delta * time.delta_seconds())
+                .clamp_length_max(settings.max_size),
+            time.delta_seconds() * 40.,
+        );
+        this_transform.rotation = this_transform.rotation.lerp(
+            Quat::from_rotation_z(delta.angle_between(Vec3::X)),
+            time.delta_seconds(),
+        );
     }
 
     let copy: Vec<_> = entities
