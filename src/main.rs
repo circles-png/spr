@@ -4,7 +4,7 @@
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss
 )]
-use std::cmp::Ordering;
+use std::{cmp::Ordering, ops::Range};
 
 use bevy::{
     prelude::*,
@@ -15,6 +15,14 @@ use rand::{distributions::Uniform, prelude::Distribution, random, thread_rng};
 #[derive(Resource)]
 struct Settings {
     speed: f32,
+    number: usize,
+    textures: [String; 3],
+    start_range: Range<f32>,
+    texture_size: f32,
+    collision_range: f32,
+    collision_speed: f32,
+    max_size: f32,
+    hit_size: f32,
 }
 
 #[derive(Component, Clone, Copy)]
@@ -52,10 +60,10 @@ impl PartialEq for Shape {
 
 impl Eq for Shape {}
 
-fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn startup(mut commands: Commands, asset_server: Res<AssetServer>, settings: Res<Settings>) {
     commands.spawn(Camera2dBundle::default());
     let mut rng = thread_rng();
-    for _ in 0..1000 {
+    for _ in 0..settings.number {
         let r#type = match Uniform::new(0, 3).sample(&mut rng) {
             0 => Shape::Scissors,
             1 => Shape::Paper,
@@ -64,30 +72,21 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
         };
         commands.spawn((
             r#type,
-            Text2dBundle {
+            SpriteBundle {
                 transform: Transform::from_translation({
                     let theta = (Uniform::new(0., 360.).sample(&mut rng) as f32).to_radians();
-                    let radius = Uniform::new(100., 800.).sample(&mut rng);
+                    let radius = Uniform::from(settings.start_range.clone()).sample(&mut rng);
                     Vec3::new(radius * theta.cos(), radius * theta.sin(), 0.0)
-                }),
-                text_anchor: bevy::sprite::Anchor::Center,
-                text: Text::from_section(
+                })
+                .with_scale(Vec3::splat(settings.texture_size)),
+                texture: asset_server.load(format!(
+                    "{}.png",
                     match r#type {
-                        Shape::Scissors => "s",
-                        Shape::Paper => "p",
-                        Shape::Rock => "r",
-                    },
-                    TextStyle {
-                        font: asset_server.load("SF-Pro.ttf"),
-                        font_size: 20.0,
-                        color: match r#type {
-                            Shape::Scissors => Color::RED,
-                            Shape::Paper => Color::WHITE,
-                            Shape::Rock => Color::GRAY,
-                        },
-                    },
-                )
-                .with_alignment(TextAlignment::Center),
+                        Shape::Scissors => settings.textures[0].clone(),
+                        Shape::Paper => settings.textures[1].clone(),
+                        Shape::Rock => settings.textures[2].clone(),
+                    }
+                )),
                 ..default()
             },
         ));
@@ -95,7 +94,7 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 fn simulate(
-    mut entities: Query<(&mut Shape, &mut Transform, &mut Text)>,
+    mut entities: Query<(&mut Shape, &mut Transform, &mut Handle<Image>)>,
     time: Res<Time>,
     settings: Res<Settings>,
 ) {
@@ -121,19 +120,6 @@ fn simulate(
             continue;
         };
         let this_translation = this_transform.translation;
-        // gizmos.ray(
-        //     this_translation,
-        //     (closest.1.translation - this_translation).normalize()
-        //         * time.delta_seconds()
-        //         * settings.speed
-        //         * match this_shape.cmp(&closest.0) {
-        //             Ordering::Greater => 1.,
-        //             Ordering::Less => -1.,
-        //             Ordering::Equal => unreachable!(),
-        //         }
-        //         * 40.,
-        //     Color::GREEN,
-        // );
         this_transform.into_inner().translation = (this_translation
             + (closest.1.translation - this_translation).normalize()
                 * time.delta_seconds()
@@ -147,7 +133,9 @@ fn simulate(
             + {
                 let average = {
                     let close_entities = copy.iter().filter_map(|(_, transform)| {
-                        if transform.translation.distance(this_translation) < 20. {
+                        if transform.translation.distance(this_translation)
+                            < settings.collision_range
+                        {
                             Some(transform.translation)
                         } else {
                             None
@@ -155,29 +143,30 @@ fn simulate(
                     });
                     close_entities.clone().sum::<Vec3>() / close_entities.count() as f32
                 };
-                (this_translation - average).normalize_or_zero() * time.delta_seconds() * 60.
+                (this_translation - average).normalize_or_zero()
+                    * time.delta_seconds()
+                    * settings.collision_speed
             })
-        .clamp_length_max(800.);
+        .clamp_length_max(settings.max_size);
     }
 
     let copy: Vec<_> = entities
         .iter()
-        .map(|(shape, transform, text)| (*shape, *transform, text.clone()))
+        .map(|(shape, transform, image)| (*shape, *transform, image.clone()))
         .collect();
-    for (this_shape, this_transform, this_text) in copy {
-        for (other_shape, other_transform, mut other_text) in &mut entities {
+    for (this_shape, this_transform, this_image) in copy {
+        for (other_shape, other_transform, other_image) in &mut entities {
             if this_shape == *other_shape {
                 continue;
             }
             if this_transform
                 .translation
                 .distance(other_transform.translation)
-                < 20.
+                < settings.hit_size
                 && this_shape > *other_shape
             {
                 *other_shape.into_inner() = this_shape;
-                other_text.sections[0].value = this_text.sections[0].value.clone();
-                other_text.sections[0].style.color = this_text.sections[0].style.color;
+                *other_image.into_inner() = this_image.clone();
             }
         }
     }
@@ -186,7 +175,17 @@ fn simulate(
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::BLACK))
-        .insert_resource(Settings { speed: 100. })
+        .insert_resource(Settings {
+            speed: 100.,
+            number: 1000,
+            textures: ["✂️".to_string(), "📄".to_string(), "🪨".to_string()],
+            start_range: 200. ..700.,
+            texture_size: 0.1,
+            collision_range: 20.,
+            collision_speed: 60.,
+            max_size: 800.,
+            hit_size: 20.,
+        })
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 mode: WindowMode::BorderlessFullscreen,
