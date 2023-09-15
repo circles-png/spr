@@ -8,7 +8,7 @@ use std::cmp::Ordering;
 
 use bevy::{
     prelude::*,
-    window::{close_on_esc, WindowMode}, gizmos,
+    window::{close_on_esc, WindowMode},
 };
 use rand::{distributions::Uniform, prelude::Distribution, random, thread_rng};
 
@@ -98,7 +98,6 @@ fn simulate(
     mut entities: Query<(&mut Shape, &mut Transform, &mut Text)>,
     time: Res<Time>,
     settings: Res<Settings>,
-    mut gizmos: Gizmos,
 ) {
     let copy: Vec<_> = entities
         .iter()
@@ -157,8 +156,7 @@ fn simulate(
                     close_entities.clone().sum::<Vec3>() / close_entities.count() as f32
                 };
                 (this_translation - average).normalize_or_zero() * time.delta_seconds() * 60.
-            }
-        )
+            })
         .clamp_length_max(800.);
     }
 
