@@ -10,7 +10,7 @@ use bevy::{
     prelude::*,
     window::{close_on_esc, WindowMode},
 };
-use rand::{distributions::Uniform, prelude::Distribution, random, thread_rng};
+use rand::{distributions::Uniform, prelude::Distribution, thread_rng};
 
 #[derive(Resource)]
 struct Settings {
@@ -60,8 +60,11 @@ impl PartialEq for Shape {
 
 impl Eq for Shape {}
 
-fn startup(mut commands: Commands, asset_server: Res<AssetServer>, settings: Res<Settings>) {
+fn spawn_camera(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
+}
+
+fn spawn_entities(mut commands: Commands, asset_server: Res<AssetServer>, settings: Res<Settings>) {
     let mut rng = thread_rng();
     for _ in 0..settings.number {
         let r#type = match Uniform::new(0, 3).sample(&mut rng) {
@@ -93,7 +96,7 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>, settings: Res
     }
 }
 
-fn simulate(
+fn movement(
     mut entities: Query<(&mut Shape, &mut Transform, &mut Handle<Image>)>,
     time: Res<Time>,
     settings: Res<Settings>,
@@ -126,8 +129,7 @@ fn simulate(
                 Ordering::Greater => 1.,
                 Ordering::Less => -1.,
                 Ordering::Equal => unreachable!(),
-            }
-            * random::<f32>();
+            };
         let collision = {
             let average = {
                 let close_entities = copy.iter().filter_map(|(_, transform)| {
@@ -149,12 +151,13 @@ fn simulate(
                 .clamp_length_max(settings.max_size),
             time.delta_seconds() * 40.,
         );
-        this_transform.rotation = this_transform.rotation.lerp(
-            Quat::from_rotation_z(delta.angle_between(Vec3::X)),
-            time.delta_seconds(),
-        );
     }
+}
 
+fn check(
+    mut entities: Query<(&mut Shape, &mut Transform, &mut Handle<Image>)>,
+    settings: Res<Settings>,
+) {
     let copy: Vec<_> = entities
         .iter()
         .map(|(shape, transform, image)| (*shape, *transform, image.clone()))
@@ -198,7 +201,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_systems(Startup, startup)
-        .add_systems(Update, (simulate, close_on_esc))
+        .add_systems(Startup, (spawn_entities, spawn_camera))
+        .add_systems(Update, (movement, close_on_esc, check))
         .run();
 }
