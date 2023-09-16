@@ -184,7 +184,7 @@ fn main() {
     App::new()
         .insert_resource(ClearColor(Color::BLACK))
         .insert_resource(Settings {
-            speed: 100.,
+            speed: 60.,
             number: 1000,
             textures: ["✂️".to_string(), "📄".to_string(), "🪨".to_string()],
             start_range: 0. ..500.,
