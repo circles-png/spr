@@ -23,6 +23,8 @@ jobs:
     - name: Install binaries
       run: |
         cargo install wasm-bindgen-cli
-        cargo install wasm-pack
+        cargo install wasm-opt
+    - name: Add target
+      run: rustup target add wasm32-unknown-unknown
     - name: Build
       run: ./build.sh
