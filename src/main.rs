@@ -187,16 +187,17 @@ fn main() {
             speed: 100.,
             number: 1000,
             textures: ["✂️".to_string(), "📄".to_string(), "🪨".to_string()],
-            start_range: 200. ..700.,
+            start_range: 0. ..500.,
             texture_size: 0.1,
             collision_range: 20.,
             collision_speed: 60.,
-            max_size: 800.,
+            max_size: 500.,
             hit_size: 20.,
         })
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 mode: WindowMode::BorderlessFullscreen,
+                fit_canvas_to_parent: true,
                 ..default()
             }),
             ..default()
