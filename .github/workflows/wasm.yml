@@ -28,3 +28,9 @@ jobs:
       run: rustup target add wasm32-unknown-unknown
     - name: Build
       run: ./build.sh
+    - name: Setup Pages
+      uses: actions/configure-pages@v3
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v2
+      with:
+        path: 'dist'
